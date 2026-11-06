@@ -1,0 +1,7 @@
+{
+  "baseUrl": "http://example.local",
+  "timeoutMs": 30000,
+  "features": {
+    "verbose": false
+  }
+}

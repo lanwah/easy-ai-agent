@@ -1,0 +1,7 @@
+{
+  "baseUrl": "http://example.local",
+  "apiKey": "your-secret-api-key",
+  "features": {
+    "verbose": true
+  }
+}
