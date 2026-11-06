@@ -1,0 +1,30 @@
+---
+description: 本仓提交信息必须使用「#序号 说明」；序号取自 git log 最大 #N + 1
+alwaysApply: true
+---
+
+# 序号提交规范（本仓启用）
+
+本仓库的 git commit **首行**必须为：
+
+```text
+#<序号> <提交说明>
+```
+
+规则：
+
+1. 取下一序号：运行（或等价解析）
+
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass `
+     -File "$HOME\.agents\skills\sequential-commit-msg\scripts\Get-NextCommitSeq.ps1" `
+     -ProjectRoot .
+   ```
+
+   逻辑：`git log --format=%s -n 200`，匹配 `^#\s*(\d+)\s`，取最大 `N`，下一序号 = `N + 1`；无匹配从 `1` 起。
+
+2. Message 写成：`#<下一序号> <说明>`。`#` 与数字之间**无空格**。
+3. 用户要求提交时默认遵守本格式；不要改用 conventional commits 等其它首行格式，除非用户当次明确要求例外。
+4. 这是仓库自增序号，不是 Redmine 工单号。
+
+示例：`#35 修复 mock 接口路径拼写`
