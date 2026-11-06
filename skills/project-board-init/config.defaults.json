@@ -1,0 +1,30 @@
+{
+  "directories": {
+    "plans": "plans",
+    "docs": "docs",
+    "doneFile": "plans/done.md",
+    "extra": []
+  },
+  "board": {
+    "file": "project.md",
+    "ruleFile": ".cursor/rules/project-board.mdc",
+    "taskBoardFile": "Task_Board.md",
+    "taskGuideFile": "references/task-management.md"
+  },
+  "taskManagement": {
+    "enabled": true,
+    "idPrefix": "TASK",
+    "requireAcceptanceCriteria": true,
+    "requireCommitForCodeTasks": true,
+    "requireTagForMilestones": true
+  },
+  "validation": {
+    "readOnly": true,
+    "checkGit": true,
+    "checkTaskReferences": true
+  },
+  "init": {
+    "fillFromRepo": true,
+    "force": false
+  }
+}

@@ -1,0 +1,50 @@
+---
+description: 项目总览与任务台账维护规则；任务状态以 Task_Board.md 为唯一权威来源
+alwaysApply: true
+---
+
+# 项目看板与任务台账
+
+## 权威文件
+
+- 根目录 `project.md` 是项目总览，必须保留且仅保留六个二级标题：项目目标、当前状态、关键决策、待办、风险、下一步。
+- 根目录 `Task_Board.md` 是所有任务及任务状态的唯一权威台账。所有安装本规则的项目均应存在该文件。
+- `{{DONE_FILE}}` 是完成任务归档；`{{SINK_DIRS_INLINE}}` 用于计划、过程记录和正式文档。
+- `{{TASK_GUIDE_FILE}}` 是本仓库内的任务管理规范副本。
+- 不在 project.md 或 plans 文档中维护第二套任务状态。project.md 的待办只做摘要并链接 Task_Board.md。
+
+## 开工前与维护
+
+- 推进项目或修改仓库前阅读 project.md、Task_Board.md，以及下一步链接的必要文档。
+- 新任务先分配永久唯一 TASK ID，填写阶段、优先级、状态、交付物和验收标准。
+- 任务依赖使用现有 Task ID；所有前置任务完成后才可开始。
+- 状态转换：TODO→IN_PROGRESS/DEFERRED/CANCELLED；IN_PROGRESS→BLOCKED/REVIEW/DEFERRED/CANCELLED；BLOCKED→IN_PROGRESS/DEFERRED/CANCELLED；REVIEW→DONE/IN_PROGRESS/BLOCKED；DEFERRED→TODO/IN_PROGRESS/CANCELLED。DONE 和 CANCELLED 默认终态，重新打开需记录原因并获用户授权。
+- 不得将未验收任务标记 DONE，不得删除或复用历史任务 ID。
+- 代码任务完成时记录真实 Commit SHA；里程碑记录真实 Tag。不得自动创建 Commit 或 Tag。
+- DONE 任务必须同步追加到 `{{DONE_FILE}}`，台账保留索引；CANCELLED 保留原因，不进入完成归档。
+- 详细规则见 [{{TASK_GUIDE_FILE}}]({{TASK_GUIDE_FILE}})。
+
+## project.md 六节约束
+
+- 项目目标只记录已确认目标；当前状态只记录可核对事实；关键决策只记录用户确认且仍生效的决策。
+- 待办只写摘要和未完成事项，附 `Task_Board.md` 链接；风险写事实、影响和应对。
+- 下一步恰好一条，动词开头且可验收。
+- 已完成记录外链固定保留：`已完成记录 → [{{DONE_FILE}}]({{DONE_FILE}})`。
+
+## 闭环回写
+
+推进或完成任务后，同步更新 Task_Board.md；必要时更新 project.md 当前状态、待办和唯一下一步。DONE 必须同时归档。若本轮没有改变执行焦点，明确说明下一步未变。
+
+## 检查
+
+检查脚本位于本机技能目录，不随仓库分发。对当前仓库做只读一致性检查：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File "$HOME\.agents\skills\project-board-init\scripts\Test-ProjectBoard.ps1" `
+  -RepoRoot "<本仓库根目录>"
+
+# 详细清单可追加 -Detailed
+```
+
+若技能装在 Cursor 路径，将上面的 `.agents\skills` 换成 `.cursor\skills`。检查只报告，不自动修复、不修改文件、不执行 Git 写操作。
