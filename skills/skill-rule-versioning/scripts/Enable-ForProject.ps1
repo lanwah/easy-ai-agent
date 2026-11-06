@@ -4,7 +4,9 @@
   Install skill-rule-versioning into a project (rule + optional initial version).
 
 .PARAMETER ProjectRoot
-  Target project or skill directory root (default: current directory).
+  Target version-unit root: repo root OR a nested skill/subproject directory
+  (default: current directory). Parent and child may each have VERSION; versions
+  do not auto-link. Install on the child path for an independent nested unit.
 
 .PARAMETER Mode
   Simple | Complex | Auto (default Auto: scripts/references/templates or >3 tracked text files => Complex).
