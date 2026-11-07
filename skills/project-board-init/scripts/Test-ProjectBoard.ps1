@@ -23,6 +23,7 @@ $dirs = ConvertTo-ProjectBoardMap (Get-ProjectBoardValue $config 'directories' @
 $board = ConvertTo-ProjectBoardMap (Get-ProjectBoardValue $config 'board' @{})
 $taskMgmt = ConvertTo-ProjectBoardMap (Get-ProjectBoardValue $config 'taskManagement' @{})
 $validation = ConvertTo-ProjectBoardMap (Get-ProjectBoardValue $config 'validation' @{})
+$projectProfile = [string](Get-ProjectBoardValue $config 'projectProfile' 'standard')
 
 $plans = [string](Get-ProjectBoardValue $dirs 'plans' 'plans')
 $docs = [string](Get-ProjectBoardValue $dirs 'docs' 'docs')
@@ -53,6 +54,8 @@ $errors = New-Object System.Collections.Generic.List[string]
 $warnings = New-Object System.Collections.Generic.List[string]
 $infos = New-Object System.Collections.Generic.List[string]
 $checks = New-Object System.Collections.Generic.List[string]
+
+if ($projectProfile -notin @('simple','standard','complex')) { Add-Error "invalid projectProfile: $projectProfile" }
 
 if (-not $readOnly) {
   $warnings.Add('validation.readOnly is not true; validator still runs read-only and never writes')
@@ -120,6 +123,33 @@ Test-BoardDirectory $plans
 Test-BoardDirectory $docs
 foreach ($e in $extra) { Test-BoardDirectory ([string]$e) }
 
+$manifestPath = Join-Path $RepoRoot '.project-board/manifest.json'
+if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
+  try {
+    $manifestData = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($manifestData.managedFiles) {
+      foreach ($entry in $manifestData.managedFiles.PSObject.Properties) {
+        $managedPath = Join-Path $RepoRoot $entry.Name
+        if (-not (Test-Path -LiteralPath $managedPath -PathType Leaf)) {
+          Add-Warning "managed file is missing: $($entry.Name)"
+        } else {
+          $actualHash = (Get-FileHash -LiteralPath $managedPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualHash -ne ([string]$entry.Value).ToLowerInvariant()) {
+            Add-Warning "managed file was modified after installation: $($entry.Name)"
+          }
+        }
+      }
+      Add-Check 'managed-file manifest verified'
+    } else {
+      Add-Warning 'managed-file manifest has no managedFiles entries'
+    }
+  } catch {
+    Add-Error "managed-file manifest is invalid: $($_.Exception.Message)"
+  }
+} else {
+  Add-Info 'managed-file manifest unavailable; legacy installation is accepted'
+}
+
 if ($taskEnabled) {
   Test-BoardFile $taskFile
   Test-BoardFile $taskGuideFile
@@ -173,8 +203,12 @@ if ($taskEnabled -and (Test-Path -LiteralPath $taskPath -PathType Leaf)) {
   $taskIdPattern = "^\|\s*($escapedPrefix-[0-9]+)\s*\|(.+)$"
   $validStatuses = @('TODO', 'IN_PROGRESS', 'BLOCKED', 'REVIEW', 'DONE', 'DEFERRED', 'CANCELLED')
   $lines = Get-Content -LiteralPath $taskPath -Encoding UTF8
+  $taskListStarted = $false
 
   foreach ($line in $lines) {
+    if ($line.Trim() -eq '## 任务列表') { $taskListStarted = $true; continue }
+    if ($taskListStarted -and $line -match '^##\s+' -and $line.Trim() -ne '## 任务列表') { $taskListStarted = $false }
+    if (-not $taskListStarted) { continue }
     if ($line -match '^\|\s*Task ID') { continue }
     if ($line -notmatch '^\|') { continue }
     $cells = Get-MarkdownTableCells $line
@@ -229,6 +263,78 @@ if ($taskEnabled -and (Test-Path -LiteralPath $taskPath -PathType Leaf)) {
       }
     }
   }
+
+  # Validate append-only status history. Legacy tasks without history remain valid but are reported as INFO.
+  $historyHeader = '| Task ID | 变更类型 | 原状态 | 新状态 | 变更时间 | 原因/授权依据 |'
+  $historyRows = @()
+  $historyStarted = $false
+  $historyIdPattern = '^\|\s*' + [regex]::Escape($idPrefix) + '-'
+  foreach ($line in $lines) {
+    if ($line.Trim() -eq '## 状态变更记录') { $historyStarted = $true; continue }
+    if ($historyStarted -and $line -match '^\|\s*Task ID\s*\|') { continue }
+    if ($historyStarted -and $line -match '^\|[-:\s|]+\|?$') { continue }
+    if ($historyStarted -and $line -match $historyIdPattern) {
+      $historyRows += ,(Get-MarkdownTableCells $line)
+    }
+    if ($historyStarted -and $line -match '^##\s+' -and $line.Trim() -ne '## 状态变更记录') { $historyStarted = $false }
+  }
+
+  $allowedNext = @{
+    TODO=@('IN_PROGRESS','DEFERRED','CANCELLED')
+    IN_PROGRESS=@('BLOCKED','REVIEW','DEFERRED','CANCELLED')
+    BLOCKED=@('IN_PROGRESS','DEFERRED','CANCELLED')
+    REVIEW=@('DONE','IN_PROGRESS','BLOCKED')
+    DEFERRED=@('TODO','IN_PROGRESS','CANCELLED')
+    DONE=@()
+    CANCELLED=@()
+  }
+  $historyByTask = @{}
+  foreach ($row in $historyRows) {
+    if ($row.Count -ne 6) {
+      Add-Error "status history row must have exactly 6 columns: $($row -join ' | ')"
+      continue
+    }
+    $hid=$row[0]; $event=$row[1]; $from=$row[2]; $to=$row[3]; $when=$row[4]; $reason=$row[5]
+    if (-not $tasks.ContainsKey($hid)) { Add-Error "status history references unknown task: $hid"; continue }
+    if ($to -notin $validStatuses) { Add-Error "invalid new status in history for ${hid}: $to"; continue }
+    if ([string]::IsNullOrWhiteSpace($when) -or $when -eq '—') { Add-Warning "status history timestamp missing: $hid" }
+    if (-not $historyByTask.ContainsKey($hid)) { $historyByTask[$hid]=New-Object System.Collections.ArrayList }
+    if ($event -eq '创建') {
+      if ($historyByTask[$hid].Count -gt 0 -or $from -ne '—' -or $to -ne 'TODO') {
+        Add-Error "invalid task creation history event: $hid"
+      }
+    } elseif ($event -eq '状态变更') {
+      if ($from -notin $validStatuses) {
+        Add-Error "invalid old status in history for ${hid}: $from"
+      } elseif ($historyByTask[$hid].Count -gt 0) {
+        $previous=$historyByTask[$hid][$historyByTask[$hid].Count-1]
+        if ($previous[3] -ne $from) { Add-Error "discontinuous status history for ${hid}: expected $($previous[3]), found $from" }
+      }
+      if ($from -in @('DONE','CANCELLED')) {
+        if ($to -notin @('TODO','IN_PROGRESS')) {
+          Add-Error "reopened terminal task ${hid} must return to TODO or IN_PROGRESS"
+        }
+        if ([string]::IsNullOrWhiteSpace($reason) -or $reason -notmatch '用户授权') {
+          Add-Error "reopening terminal task ${hid} requires reason and explicit user authorization in history"
+        }
+      } elseif ($from -in $allowedNext.Keys -and $to -notin $allowedNext[$from]) {
+        Add-Error "illegal status transition for ${hid}: $from -> $to"
+      }
+    } else {
+      Add-Error "invalid status history event type for ${hid}: $event"
+    }
+    [void]$historyByTask[$hid].Add($row)
+  }
+  foreach ($hid in $historyByTask.Keys) {
+    $events=$historyByTask[$hid]
+    if ($events.Count -gt 0 -and $events[$events.Count-1][3] -ne $tasks[$hid][5]) {
+      Add-Error "latest status history does not match Task_Board status for ${hid}"
+    }
+  }
+  $legacyCount=0
+  foreach ($hid in $tasks.Keys) { if (-not $historyByTask.ContainsKey($hid)) { $legacyCount++ } }
+  if ($legacyCount -gt 0) { Add-Info "$legacyCount task(s) have no status history; legacy baseline is accepted" }
+  Add-Check "status history: $($historyRows.Count) event(s) parsed"
 
   if ($checkTaskRefs) {
     foreach ($id in $deps.Keys) {
@@ -328,6 +434,8 @@ $status = if ($errors.Count -gt 0) {
 $result = [ordered]@{
   ok        = ($errors.Count -eq 0)
   status    = $status
+  severityCounts = [ordered]@{ ERROR=$errors.Count; WARNING=$warnings.Count; INFO=$infos.Count; PASS=$(if ($errors.Count -eq 0 -and $warnings.Count -eq 0 -and $infos.Count -eq 0) { 1 } else { 0 }) }
+  projectProfile = $projectProfile
   checks    = @($checks)
   errors    = @($errors)
   warnings  = @($warnings)

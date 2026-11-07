@@ -22,5 +22,6 @@
     "readOnly": true,
     "checkGit": true,
     "checkTaskReferences": true
-  }
+  },
+  "projectProfile": "standard"
 }

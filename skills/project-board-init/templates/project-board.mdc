@@ -20,6 +20,9 @@ alwaysApply: true
 - 任务依赖使用现有 Task ID；所有前置任务完成后才可开始。
 - 状态定义、合法转换、依赖、验收与归档规则以 `{{TASK_GUIDE_FILE}}` 为唯一规范源；本规则只保留执行摘要，不另行定义规则。
 - 不得将未验收任务标记 DONE，不得删除或复用历史任务 ID。
+- 新任务创建时在 Task_Board.md 的“状态变更记录”追加创建事件；每次状态变化追加状态变更事件，不得修改历史行。
+- DONE/CANCELLED 重新打开必须取得用户明确授权，并在状态历史原因/依据中记录“用户授权”。
+- 项目规模按配置的 simple/standard/complex 控制计划文档粒度，但 Task_Board.md 始终是唯一权威任务台账。
 - 代码任务完成时记录真实 Commit SHA；里程碑记录真实 Tag。不得自动创建 Commit 或 Tag。
 - DONE 任务必须同步追加到 `{{DONE_FILE}}`，台账保留索引；CANCELLED 保留原因，不进入完成归档。
 - 详细规则见 [{{TASK_GUIDE_FILE}}]({{TASK_GUIDE_FILE}})。

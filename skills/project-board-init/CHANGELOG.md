@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.3.0] - 2026-11-07
+
+### Added
+- Task_Board.md 新增追加式状态变更记录，记录任务创建、状态变化、时间、原因与用户授权依据。
+- 检查器验证状态转换合法性、历史连续性、最新历史状态与当前台账状态一致；DONE/CANCELLED 重新打开仅允许回到 TODO/IN_PROGRESS 且必须有用户授权记录；无历史的旧任务按兼容基线接受并提示 INFO。
+- 新增 `projectProfile`：simple / standard / complex，默认 standard；所有规模均保留 Task_Board.md，规模只影响计划拆分粒度。
+- 安装器生成 `.project-board/manifest.json`，记录技能托管文件 SHA-256、技能版本和项目规模。
+- 检查报告增加 ERROR / WARNING / INFO / PASS 计数，并明确严重级别语义。
+
+### Changed
+- 升级脚本改为版本感知、manifest 驱动：预览展示来源版本、目标版本、文件操作和冲突。
+- 升级时自动更新哈希未变化的托管文件；用户修改过或未纳管的文件默认保留并报告冲突。
+- 只有显式 `-Force` 才覆盖冲突文件；所有替换仍先备份。
+- README、SKILL、任务规范与项目规则同步状态历史、规模适配和升级规则。
+
+### Compatibility
+- 已有任务台账没有状态历史时不强制补造历史，作为历史基线接受并输出 INFO。
+- 旧安装项目没有 manifest 时，升级默认只创建缺失文件；已有文件列为未纳管冲突，需审核后显式 `-Force` 才覆盖。
+- `Task_Board.md` 对 simple / standard / complex 项目均为必需文件。
+
+### Validation
+- 完成 ZIP 结构、JSON 配置、版本元数据和脚本静态结构检查。
+- 当前执行环境未安装 Windows PowerShell 5.1 / PowerShell 7；需在两种 Windows PowerShell 环境分别运行 `tests/Run-Tests.ps1`。
+
 ## [1.2.1] - 2026-11-07
 
 ### Fixed

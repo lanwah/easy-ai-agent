@@ -1,7 +1,3 @@
 {
-  "directories": {
-    "extra": [
-      "design"
-    ]
-  }
+  "projectProfile": "standard"
 }

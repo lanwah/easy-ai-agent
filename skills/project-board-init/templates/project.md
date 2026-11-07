@@ -1,5 +1,7 @@
 # 项目看板
 
+<!-- project-board-profile: {{PROJECT_PROFILE}} -->
+
 ## 项目目标
 待确认
 
