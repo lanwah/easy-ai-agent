@@ -4,7 +4,7 @@ description: >-
   为仓库启用「#序号 提交说明」自增提交规范：从 git log 解析上次序号并 +1。
   当用户点名 sequential-commit-msg、说「启用序号提交」「#序号 提交规范」、
   「安装序号 commit message」或要求按 #N 空格说明 写提交信息时使用。
-version: 1.0.0
+version: 1.0.1
 ---
 
 # 序号提交规范（sequential-commit-msg）

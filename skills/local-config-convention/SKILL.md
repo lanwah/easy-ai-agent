@@ -5,7 +5,7 @@ description: >-
   本机 local 部分覆盖 defaults。在新建或改造 Cursor Skill、Agent 脚本、项目本地配置，
   或出现 config.defaults.json、config.local.json、config.local.json.example、
   本地覆盖配置、密钥勿提交、从 example 生成 local 时使用本 Skill。
-version: 1.0.0
+version: 1.0.1
 ---
 
 # 本地配置三件套规范

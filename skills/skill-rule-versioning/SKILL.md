@@ -5,7 +5,7 @@ description: >-
   简单项目正文维护，复杂项目独立 VERSION/CHANGELOG；支持合集与子目录嵌套版本单元（就近优先、默认不联动）。
   当用户点名 skill-rule-versioning、说「安装版本管理」「启用 skill/rule 版本」、
   「给项目挂版本门禁」「嵌套/子项目版本」或要求跨端（Codex/ChatGPT）对齐版本时使用。
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Skill / Rule 版本管理（skill-rule-versioning）
@@ -64,7 +64,7 @@ version: 1.1.0
    已存在则先说明差异，问是否覆盖；勿静默覆盖。
 6. **初始化版本（默认做）**：
    - Simple：主文件（优先 `SKILL.md`，否则 `RULE.md` / `AGENTS.md` / 单份业务 `.mdc`）写入 frontmatter `version: 1.0.0`（若无）及文末 `## 版本记录` 首条。
-   - Complex：创建 `VERSION`（若无）与 `CHANGELOG.md`（若无）；主文件 `version` 与 `VERSION` 对齐。
+   - Complex：创建 `VERSION`（若无）与 `CHANGELOG.md`（若无）；主文件 `version` 与 `VERSION` 对齐。`CHANGELOG.md` 用 Keep-a-Changelog 风格（`## [x.y.z] - YYYY-MM-DD` + `### Added` / `### Changed` / `### Fixed` 等，同 `project-board-init`）。
    - 已有版本元数据：保留现有号，只补缺失件，不擅自清历史。
 7. 简短确认：已写入规则、当前基线版本、简单/复杂形态、是否嵌套。
 
@@ -103,7 +103,7 @@ Agent 用脚本安装后仍须向用户汇报结果；若 Auto 判定与用户�
 1. **解析最近版本单元**（自文件目录向上找 `VERSION` 或主文件 `version`）。
 2. **改前门禁**：展示**单元路径**、当前版本、最近变更、拟改文件；多单元则分列；等待用户确认。
 3. **实施修改**（仅确认后）。
-4. **升版 + 记录**：只升命中单元；按模板 SemVer 与简单/复杂落点更新。
+4. **升版 + 记录**：只升命中单元；按模板 SemVer 与简单/复杂落点更新。复杂单元追加 `CHANGELOG.md` 时用 Keep-a-Changelog 分节（见模板 §3 变更说明），勿再写单行列表。
 5. **收尾**：回复单元路径、旧版 → 新版与摘要。
 
 细则以已安装的 `.mdc` 为准（与本 Skill 模板同步维护）。

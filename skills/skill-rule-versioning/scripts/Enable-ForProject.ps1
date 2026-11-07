@@ -190,8 +190,8 @@ if ($resolvedMode -eq 'Complex') {
     }
 
     if (-not (Test-Path -LiteralPath $changelogPath)) {
-        $tick = [char]96
-        $cl = "# Changelog`r`n`r`n- $tick$version$tick $date $summary`r`n"
+        # Keep-a-Changelog style (same as project-board-init)
+        $cl = "# Changelog`r`n`r`n## [$version] - $date`r`n`r`n### Added`r`n- $summary`r`n"
         Write-Utf8File -Path $changelogPath -Content $cl
         Write-Output "OK wrote $changelogPath"
     }
