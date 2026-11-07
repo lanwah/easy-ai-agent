@@ -56,7 +56,7 @@ alwaysApply: true
 | 形态 | 判定 | 版本权威 | 变更记录 |
 |------|------|----------|----------|
 | **简单** | 实质文件少（通常 ≤3）、无 `scripts/`、无多份 `references/` | 主文件 frontmatter `version` | 主文件文末 `## 版本记录`（新→旧） |
-| **复杂** | 多文件、含脚本/参考/模板 | 单元根目录 `VERSION`；主文件 `version` 必须相同 | 单元根目录 `CHANGELOG.md`（新→旧） |
+| **复杂** | 多文件、含脚本/参考/模板 | 单元根目录 `VERSION`；主文件 `version` 必须相同 | 单元根 `CHANGELOG.md`（Keep-a-Changelog；新→旧；见 §3） |
 
 **同一版本单元内**只保留一种权威来源。父子单元各有 `VERSION` 合法，不算「两套权威冲突」。  
 从简单拆出 scripts/references/templates 时，当轮升级为复杂体系并迁移记录。
@@ -81,7 +81,32 @@ alwaysApply: true
 
 ### 变更说明
 
-每条至少：`版本`、`日期（YYYY-MM-DD）`、`摘要（一句话）`。可选：影响文件。
+**简单**：文末 `## 版本记录`；每条至少：`版本`、`日期（YYYY-MM-DD）`、`摘要（一句话）`；新→旧。
+
+**复杂**：单元根 `CHANGELOG.md` 采用 Keep-a-Changelog 风格（与 `project-board-init` 一致）：
+
+```markdown
+# Changelog
+
+## [x.y.z] - YYYY-MM-DD
+
+### Added
+- …
+
+### Changed
+- …
+
+### Fixed
+- …
+```
+
+规则：
+
+- 文件标题固定 `# Changelog`
+- 每个版本一节：`## [MAJOR.MINOR.PATCH] - YYYY-MM-DD`，新→旧
+- 节内按变更性质使用 `### Added` / `### Changed` / `### Fixed`；可选 `### Safety` / `### Compatibility` / `### Validation` 等
+- 每条 bullet 写清做了什么；可点名影响文件/脚本；禁止只写「更新」「微调」
+- 门禁展示「最近一条」时：取最新 `## [...]` 节的首条 bullet，或用一句话概括该节
 
 ### 收尾
 
@@ -96,6 +121,7 @@ alwaysApply: true
 - ❌ 复杂单元无 `VERSION`/`CHANGELOG.md`
 - ❌ 同一单元内两套版本号不一致
 - ❌ 变更只写「更新」「微调」
+- ❌ 复杂 CHANGELOG 仍用单行 `- \`x.y.z\` 日期 摘要`，缺少 `## [x.y.z]` 与 `### Added/Changed/Fixed` 分节
 
 ## 5. 跨端同步
 

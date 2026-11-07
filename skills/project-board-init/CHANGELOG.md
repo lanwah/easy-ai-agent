@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## [1.3.3] - 2026-11-07
+
+### Changed
+- `.cursor/rules/skill-rule-versioning.mdc`：对齐 skill-rule-versioning 1.2.0 模板，复杂单元 CHANGELOG 明确要求 Keep-a-Changelog 分节写法。
+
 ## [1.3.2] - 2026-11-07
 
 ### Fixed
