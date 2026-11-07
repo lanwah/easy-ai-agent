@@ -1,5 +1,6 @@
 # Changelog
 
+- `1.3.0` 2026-11-07 收录 software-predev-workflow-skill 2.4.1
 - `1.2.0` 2026-11-06 收录 local-config-convention 1.0.0
 - `1.1.0` 2026-11-06 收录 sequential-commit-msg 1.0.0
 - `1.0.1` 2026-11-06 同步 skill-rule-versioning 1.1.0 规则正文（嵌套版本单元）
