@@ -1,5 +1,5 @@
 ---
-version: 1.3.0
+version: 1.3.1
 name: project-board-init
 description: >-
   为仓库安装项目看板与统一任务台账：写入 .cursor/rules/project-board.mdc，创建

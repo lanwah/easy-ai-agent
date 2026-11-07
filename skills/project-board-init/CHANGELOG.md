@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.1] - 2026-11-07
+
+### Fixed
+- `Upgrade-ProjectBoard.ps1`：改用 hashtable 命名 splat 调用安装器，修复数组 splat 把 `-ConfigDefaultsPath` 等当成位置参数导致升级预览失败。
+- `Install-ProjectBoard.ps1`：规划托管文件时先快照 `$map.Keys`，避免 `migrate-merge` 改写内容时触发 “Collection was modified”。
+- `Test-ProjectBoard.ps1`：重开 DONE/CANCELLED 的 ERROR 文案包含「用户授权」，与检查规则及集成测试断言一致。
+- `tests/Run-Tests.ps1`：重开场景的状态历史按行拼接，避免两行粘成一行触发列数误报。
+
 ## [1.3.0] - 2026-11-07
 
 ### Added

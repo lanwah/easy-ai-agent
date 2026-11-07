@@ -138,7 +138,8 @@ $map[$taskGuideFile] = Expand-ProjectBoardTemplate (Get-Content -LiteralPath $ta
 
 # Validate file targets and all parent components before any writes.
 $plan = @()
-foreach ($rel in $map.Keys) {
+# Snapshot keys: migrate-merge may rewrite $map[$rel] mid-loop.
+foreach ($rel in @($map.Keys)) {
   $target = Get-CanonicalTargetPath $rel
   $parent = Split-Path -Parent $target
   $cursor = $parent

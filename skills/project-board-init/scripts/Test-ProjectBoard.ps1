@@ -315,7 +315,7 @@ if ($taskEnabled -and (Test-Path -LiteralPath $taskPath -PathType Leaf)) {
           Add-Error "reopened terminal task ${hid} must return to TODO or IN_PROGRESS"
         }
         if ([string]::IsNullOrWhiteSpace($reason) -or $reason -notmatch '用户授权') {
-          Add-Error "reopening terminal task ${hid} requires reason and explicit user authorization in history"
+          Add-Error "reopening terminal task ${hid} requires reason containing 用户授权 (explicit user authorization) in history"
         }
       } elseif ($from -in $allowedNext.Keys -and $to -notin $allowedNext[$from]) {
         Add-Error "illegal status transition for ${hid}: $from -> $to"

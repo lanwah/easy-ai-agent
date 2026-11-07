@@ -26,10 +26,24 @@ if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
   } catch { throw "Cannot read existing project-board manifest: $($_.Exception.Message)" }
 }
 
-$common = @('-RepoRoot',$RepoRoot,'-SkillDir',$SkillDir,'-ConfigDefaultsPath',$ConfigDefaultsPath,'-ConfigLocalPath',$ConfigLocalPath,'-ManagedUpgrade')
+# Named hashtable splat is required; string-array splat binds as positionals and breaks -Config* switches.
+$common = @{
+  RepoRoot           = $RepoRoot
+  SkillDir           = $SkillDir
+  ConfigDefaultsPath = $ConfigDefaultsPath
+  ConfigLocalPath    = $ConfigLocalPath
+  ManagedUpgrade     = $true
+}
 if (-not $Apply) {
-  $previewArgs = @($common) + @('-Preview')
-  if ($Force) { $previewArgs += '-Force' }
+  $previewArgs = @{
+    RepoRoot           = $common.RepoRoot
+    SkillDir           = $common.SkillDir
+    ConfigDefaultsPath = $common.ConfigDefaultsPath
+    ConfigLocalPath    = $common.ConfigLocalPath
+    ManagedUpgrade     = $true
+    Preview            = $true
+  }
+  if ($Force) { $previewArgs['Force'] = $true }
   $raw = & $installer @previewArgs
   $code = $LASTEXITCODE
   if ($code -ne 0) { $raw; exit $code }
@@ -50,8 +64,14 @@ if (-not $Apply) {
   exit 0
 }
 
-$applyArgs = @($common)
-if ($Force) { $applyArgs += '-Force' }
+$applyArgs = @{
+  RepoRoot           = $common.RepoRoot
+  SkillDir           = $common.SkillDir
+  ConfigDefaultsPath = $common.ConfigDefaultsPath
+  ConfigLocalPath    = $common.ConfigLocalPath
+  ManagedUpgrade     = $true
+}
+if ($Force) { $applyArgs['Force'] = $true }
 $raw = & $installer @applyArgs
 $code = $LASTEXITCODE
 $raw

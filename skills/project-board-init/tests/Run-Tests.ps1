@@ -76,8 +76,11 @@ try {
   $invalidJson = ($invalidOutput -join "`n") | ConvertFrom-Json
   Assert-True ($invalidExit -eq 2 -and $invalidJson.status -eq 'ERROR') 'Validator rejects illegal status transition'
 
-  $reopenHistory = $validHistory + "| TASK-001 | 状态变更 | IN_PROGRESS | REVIEW | 2026-11-07T10:10:00 | 提交验收 |`r`n| TASK-001 | 状态变更 | REVIEW | DONE | 2026-11-07T10:15:00 | 验收通过 |`r`n| TASK-001 | 状态变更 | DONE | IN_PROGRESS | 2026-11-07T10:20:00 | 重新开始 |`r`n"
-  $reopenBoard = $validBoard.Replace($validHistory,$reopenHistory)
+  $reopenHistory = ($validHistory.TrimEnd() + "`r`n" +
+    "| TASK-001 | 状态变更 | IN_PROGRESS | REVIEW | 2026-11-07T10:10:00 | 提交验收 |`r`n" +
+    "| TASK-001 | 状态变更 | REVIEW | DONE | 2026-11-07T10:15:00 | 验收通过 |`r`n" +
+    "| TASK-001 | 状态变更 | DONE | IN_PROGRESS | 2026-11-07T10:20:00 | 重新开始 |`r`n")
+  $reopenBoard = $validBoard.Replace($validHistory.TrimEnd(), $reopenHistory.TrimEnd()) + "`r`n"
   [System.IO.File]::WriteAllText($taskPath,$reopenBoard,([System.Text.UTF8Encoding]::new($false)))
   $reopenOutput = & $validator -RepoRoot $repo -SkillDir $SkillDir -ConfigDefaultsPath $configPath -ConfigLocalPath (Join-Path $testRoot 'missing.json') -Detailed 2>&1
   $reopenExit = $LASTEXITCODE
