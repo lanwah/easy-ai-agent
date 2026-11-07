@@ -1,11 +1,12 @@
+# 本机覆盖配置（切勿提交）
+/config.local.json
+*.local.json
+!config.local.json.example
+
 .vscode
 bin/
 obj/
 debug/
 release/
-
-# 本机覆盖配置（切勿提交）
-/config.local.json
-*.local.json
-!config.local.json.example
+*.zip
 

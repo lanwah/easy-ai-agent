@@ -106,3 +106,24 @@ function Get-ProjectBoardStringList {
   }
   return $list
 }
+
+function Assert-ProjectBoardNoReparsePoint {
+  param(
+    [Parameter(Mandatory = $true)][string]$Root,
+    [string]$RelativePath = ''
+  )
+  $rootItem = Get-Item -LiteralPath $Root -Force -ErrorAction Stop
+  if (($rootItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+    throw "Repository root is a symbolic link or junction and is not allowed: $Root"
+  }
+  $cursor = $Root
+  if ([string]::IsNullOrWhiteSpace($RelativePath)) { return }
+  foreach ($segment in ($RelativePath -split '[\\/]' | Where-Object { $_ -ne '' })) {
+    $cursor = Join-Path $cursor $segment
+    $item = $null
+    try { $item = Get-Item -LiteralPath $cursor -Force -ErrorAction Stop } catch { }
+    if ($null -ne $item -and (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) {
+      throw "Configured path crosses a symbolic link or junction: $RelativePath ($cursor)"
+    }
+  }
+}

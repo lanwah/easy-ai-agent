@@ -14,9 +14,10 @@ $ErrorActionPreference = 'Stop'
 if (-not $SkillDir) { $SkillDir = Split-Path -Parent $PSScriptRoot }
 if (-not $ConfigDefaultsPath) { $ConfigDefaultsPath = Join-Path $SkillDir 'config.defaults.json' }
 if (-not $ConfigLocalPath) { $ConfigLocalPath = Join-Path $SkillDir 'config.local.json' }
-$RepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
-
 . (Join-Path $PSScriptRoot 'ProjectBoardConfig.ps1')
+Assert-ProjectBoardNoReparsePoint -Root $RepoRoot
+$RepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
+Assert-ProjectBoardNoReparsePoint -Root $RepoRoot
 
 $config = Get-ProjectBoardConfig -DefaultsPath $ConfigDefaultsPath -LocalPath $ConfigLocalPath
 $dirs = ConvertTo-ProjectBoardMap (Get-ProjectBoardValue $config 'directories' @{})
@@ -36,6 +37,7 @@ $extra = Get-ProjectBoardStringList (Get-ProjectBoardValue $dirs 'extra' @())
 $configuredPaths = @($plans,$docs,$done,$boardFile,$ruleFile,$taskFile,$taskGuideFile) + $extra
 foreach ($rel in $configuredPaths) { Assert-ProjectBoardRelativePath -Path ([string]$rel) -Name 'path' }
 foreach ($rel in $configuredPaths) {
+  Assert-ProjectBoardNoReparsePoint -Root $RepoRoot -RelativePath ([string]$rel)
   $full = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot ([string]$rel)))
   $prefix = $RepoRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
   if (-not $full.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) { throw "Configured path escapes repository root: $rel" }
@@ -129,6 +131,8 @@ if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
     $manifestData = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
     if ($manifestData.managedFiles) {
       foreach ($entry in $manifestData.managedFiles.PSObject.Properties) {
+        Assert-ProjectBoardRelativePath -Path ([string]$entry.Name) -Name 'manifest managedFiles path'
+        Assert-ProjectBoardNoReparsePoint -Root $RepoRoot -RelativePath ([string]$entry.Name)
         $managedPath = Join-Path $RepoRoot $entry.Name
         if (-not (Test-Path -LiteralPath $managedPath -PathType Leaf)) {
           Add-Warning "managed file is missing: $($entry.Name)"
@@ -289,6 +293,7 @@ if ($taskEnabled -and (Test-Path -LiteralPath $taskPath -PathType Leaf)) {
     CANCELLED=@()
   }
   $historyByTask = @{}
+  $lastTimestampByTask = @{}
   foreach ($row in $historyRows) {
     if ($row.Count -ne 6) {
       Add-Error "status history row must have exactly 6 columns: $($row -join ' | ')"
@@ -297,17 +302,35 @@ if ($taskEnabled -and (Test-Path -LiteralPath $taskPath -PathType Leaf)) {
     $hid=$row[0]; $event=$row[1]; $from=$row[2]; $to=$row[3]; $when=$row[4]; $reason=$row[5]
     if (-not $tasks.ContainsKey($hid)) { Add-Error "status history references unknown task: $hid"; continue }
     if ($to -notin $validStatuses) { Add-Error "invalid new status in history for ${hid}: $to"; continue }
-    if ([string]::IsNullOrWhiteSpace($when) -or $when -eq '—') { Add-Warning "status history timestamp missing: $hid" }
+    $parsedTimestamp = [DateTimeOffset]::MinValue
+    $timestampPattern = '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,7})?(?:Z|[+-]\d{2}:\d{2})?$'
+    $timestampValid = $when -match $timestampPattern -and [DateTimeOffset]::TryParse(
+      $when,
+      [System.Globalization.CultureInfo]::InvariantCulture,
+      [System.Globalization.DateTimeStyles]::AllowWhiteSpaces,
+      [ref]$parsedTimestamp
+    )
+    if (-not $timestampValid) {
+      Add-Error "invalid status history timestamp for ${hid}: $when (expected ISO 8601 date-time)"
+    } elseif ($lastTimestampByTask.ContainsKey($hid) -and $parsedTimestamp.UtcDateTime -lt $lastTimestampByTask[$hid].UtcDateTime) {
+      Add-Error "status history timestamps are out of order for ${hid}: $when"
+    } else {
+      $lastTimestampByTask[$hid] = $parsedTimestamp
+    }
     if (-not $historyByTask.ContainsKey($hid)) { $historyByTask[$hid]=New-Object System.Collections.ArrayList }
+    $eventCount = $historyByTask[$hid].Count
     if ($event -eq '创建') {
-      if ($historyByTask[$hid].Count -gt 0 -or $from -ne '—' -or $to -ne 'TODO') {
-        Add-Error "invalid task creation history event: $hid"
+      if ($eventCount -gt 0 -or $from -ne '—' -or $to -ne 'TODO') {
+        Add-Error "invalid task creation history event: $hid (must be the first event: — -> TODO)"
       }
     } elseif ($event -eq '状态变更') {
+      if ($eventCount -eq 0) {
+        Add-Error "task status history must begin with a creation event: $hid"
+      }
       if ($from -notin $validStatuses) {
         Add-Error "invalid old status in history for ${hid}: $from"
-      } elseif ($historyByTask[$hid].Count -gt 0) {
-        $previous=$historyByTask[$hid][$historyByTask[$hid].Count-1]
+      } elseif ($eventCount -gt 0) {
+        $previous=$historyByTask[$hid][$eventCount-1]
         if ($previous[3] -ne $from) { Add-Error "discontinuous status history for ${hid}: expected $($previous[3]), found $from" }
       }
       if ($from -in @('DONE','CANCELLED')) {
@@ -327,6 +350,9 @@ if ($taskEnabled -and (Test-Path -LiteralPath $taskPath -PathType Leaf)) {
   }
   foreach ($hid in $historyByTask.Keys) {
     $events=$historyByTask[$hid]
+    if ($events.Count -gt 0 -and $events[0][1] -ne '创建') {
+      Add-Error "task status history must begin with a creation event: $hid"
+    }
     if ($events.Count -gt 0 -and $events[$events.Count-1][3] -ne $tasks[$hid][5]) {
       Add-Error "latest status history does not match Task_Board status for ${hid}"
     }

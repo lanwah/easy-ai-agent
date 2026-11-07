@@ -1,4 +1,4 @@
-# project-board-init
+﻿# project-board-init
 
 为任意仓库安装统一的项目看板和任务台账。当前版本：**V1.3.0**。
 
@@ -83,13 +83,13 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 # 输出详细检查清单：在上面的命令后追加 -Detailed
 ```
 
-检查器只读目标仓库：不改文件、不自动修复、不执行 Git 写操作。结果分级：ERROR（确定性错误）、WARNING（需要核实）、INFO（跳过或提示）、PASS（检查通过）。Git 仓库识别使用 Git 自身的工作树探测命令，兼容常规仓库与 Worktree。
+安装器与检查器拒绝目标路径穿过符号链接/目录联接；检查器只读目标仓库：不改文件、不自动修复、不执行 Git 写操作。结果分级：ERROR（确定性错误）、WARNING（需要核实）、INFO（跳过或提示）、PASS（检查通过）。Git 仓库识别使用 Git 自身的工作树探测命令，兼容常规仓库与 Worktree。
 
 ## 任务管理
 
 - 任务编号：`TASK-001` 起，永久唯一。
 - `Task_Board.md` 是任务状态唯一权威来源；`project.md` 只展示摘要。
-- 状态历史追加记录在 `Task_Board.md`，检查器验证合法转换和历史连续性；没有历史的旧任务作为历史基线接受并提示 INFO。
+- 状态历史追加记录在 `Task_Board.md`，检查器验证创建事件、ISO 8601 时间戳及顺序、合法转换和历史连续性；没有历史的旧任务作为历史基线接受并提示 INFO。
 - DONE/CANCELLED 重新打开只能回到 TODO 或 IN_PROGRESS，且必须在历史中记录原因和用户授权。
 - `references/task-management.md` 是任务状态、转换、依赖、验收、归档和 Git 关联规则的唯一规范源；README、SKILL 与项目规则只保留操作摘要。
 - DONE 任务必须验收并归档到 `plans/done.md`；代码任务记录 Commit，里程碑记录 Tag。技能不会自动创建 Commit 或 Tag。
@@ -109,7 +109,7 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 ## 安全
 
 - 勿提交 `config.local.json`。
-- 安装前先运行 `-Preview`；预览模式不会创建目录或文件。
+- 安装前先运行 `-Preview`；预览模式不会创建目录或文件。仓库根目录及配置目标路径不得经过符号链接或目录联接（Reparse Point），以避免路径绕出仓库边界。
 - 安装脚本默认保留已有文件；`-Force` 仅由本次命令行显式指定生效。
 - 覆盖前自动备份到目标仓库 `.project-board-backups/`，备份不会自动清理。
 - `.project-board/manifest.json` 保存技能托管文件的哈希与版本信息；升级时只自动更新未被用户修改的托管文件。

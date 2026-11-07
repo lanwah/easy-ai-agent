@@ -1,4 +1,16 @@
-# Changelog
+﻿# Changelog
+
+## [1.3.2] - 2026-11-07
+
+### Fixed
+- `Test-ProjectBoard.ps1`：每项一旦具有状态历史，必须以唯一的 `创建`（`— -> TODO`）事件开头；禁止从状态变更事件开始或重复创建事件。
+- `Test-ProjectBoard.ps1`：状态历史时间戳必须符合 ISO 8601 日期时间格式且可解析；同一任务的时间顺序不得倒退。
+- `ProjectBoardConfig.ps1`：新增 Reparse Point 路径检查；安装器与检查器拒绝仓库根目录或仓库内目标路径经过符号链接/目录联接，Manifest 托管路径也执行同样检查。
+- `tests/Run-Tests.ps1`：增加缺少创建事件、重复创建事件、非法时间戳、时间倒退及 Junction 路径边界回归测试。
+
+### Validation
+- 完成静态结构、版本元数据、JSON、文档一致性及 ZIP 完整性检查。
+- Windows PowerShell 5.1.26100 与 PowerShell 7 分别运行 `tests/Run-Tests.ps1`：均为 Tests passed: 21; failed: 0。
 
 ## [1.3.1] - 2026-11-07
 

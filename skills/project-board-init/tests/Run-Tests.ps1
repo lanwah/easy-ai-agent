@@ -36,12 +36,43 @@ try {
   $rejected = $false
   try { & $installer -RepoRoot $repo -SkillDir $SkillDir -ConfigDefaultsPath $configPath -ConfigLocalPath $badConfig | Out-Null } catch { $rejected = $true }
   Assert-True $rejected 'Path traversal configuration is rejected'
+
+  $validator = Join-Path $SkillDir 'scripts/Test-ProjectBoard.ps1'
+
+  # Reparse points (directory symlinks/junctions) must not redirect configured paths outside the repository.
+  $outsidePath = Join-Path $testRoot 'outside-target'
+  $junctionPath = Join-Path $repo 'linked'
+  New-Item -ItemType Directory -Path $outsidePath | Out-Null
+  $junctionCreated = $false
+  if ($env:OS -eq 'Windows_NT') {
+    & $env:ComSpec /c "mklink /J `"$junctionPath`" `"$outsidePath`"" 2>&1 | Out-Null
+    $junctionCreated = Test-Path -LiteralPath $junctionPath -PathType Container
+  }
+  if ($junctionCreated) {
+    $rootJunctionPath = Join-Path $testRoot 'repo-root-link'
+    & $env:ComSpec /c "mklink /J `"$rootJunctionPath`" `"$repo`"" 2>&1 | Out-Null
+    $rootJunctionRejected = $false
+    if (Test-Path -LiteralPath $rootJunctionPath -PathType Container) {
+      try { & $installer -RepoRoot $rootJunctionPath -Preview -SkillDir $SkillDir -ConfigDefaultsPath $configPath -ConfigLocalPath (Join-Path $testRoot 'missing.json') | Out-Null } catch { $rootJunctionRejected = $true }
+    }
+    Assert-True $rootJunctionRejected 'Installer rejects a repository root that is a directory junction'
+
+    $junctionConfig = Join-Path $testRoot 'junction.json'
+    [System.IO.File]::WriteAllText($junctionConfig,'{"directories":{"extra":["linked/child"]}}')
+    $installerRejectedJunction = $false
+    try { & $installer -RepoRoot $repo -SkillDir $SkillDir -ConfigDefaultsPath $configPath -ConfigLocalPath $junctionConfig | Out-Null } catch { $installerRejectedJunction = $true }
+    Assert-True $installerRejectedJunction 'Installer rejects configured paths that cross a directory junction'
+    $validatorRejectedJunction = $false
+    try { & $validator -RepoRoot $repo -SkillDir $SkillDir -ConfigDefaultsPath $configPath -ConfigLocalPath $junctionConfig -Detailed | Out-Null } catch { $validatorRejectedJunction = $true }
+    Assert-True $validatorRejectedJunction 'Validator rejects configured paths that cross a directory junction'
+  } else {
+    Write-Host 'SKIP Junction tests: unable to create a Windows directory junction in this environment'
+  }
   $forceConfig = Join-Path $testRoot 'force.json'
   [System.IO.File]::WriteAllText($forceConfig,'{"init":{"force":true}}')
   [System.IO.File]::WriteAllText($board,'PRESERVE ME')
   & $installer -RepoRoot $repo -SkillDir $SkillDir -ConfigDefaultsPath $configPath -ConfigLocalPath $forceConfig | Out-Null
   Assert-True ((Get-Content $board -Raw) -eq 'PRESERVE ME') 'Config cannot authorize Force overwrite'
-  $validator = Join-Path $SkillDir 'scripts/Test-ProjectBoard.ps1'
   $taskPath = Join-Path $repo 'Task_Board.md'
   $badRow = '| TASK-ABC | Bad task | 需求 | core | P1 | TODO | Agent | — | file | criteria | — | — | 2026-11-07 | 普通 |'
   [System.IO.File]::WriteAllText($taskPath, "# 任务台账`r`n`r`n## 任务列表`r`n`r`n| Task ID | 任务名称 | 阶段 | 模块 | 优先级 | 状态 | 执行者 | 前置任务 | 交付物 | 验收标准 | Commit | Tag | 更新时间 | 任务类型 |`r`n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|`r`n$badRow`r`n", ([System.Text.UTF8Encoding]::new($false)))
@@ -66,6 +97,38 @@ try {
   $validExit = $LASTEXITCODE
   $validJson = ($validOutput -join "`n") | ConvertFrom-Json
   Assert-True ($validExit -eq 1 -and $validJson.status -eq 'WARNING' -and $validJson.errors.Count -eq 0) 'Validator accepts legal continuous status history and warns about user edits'
+
+  $missingCreateHistory = $validHistory.Replace("| TASK-001 | 创建 | — | TODO | 2026-11-07T10:00:00 | 用户创建 |",'')
+  $missingCreateBoard = $validBoard.Replace($validHistory,$missingCreateHistory)
+  [System.IO.File]::WriteAllText($taskPath,$missingCreateBoard,([System.Text.UTF8Encoding]::new($false)))
+  $missingCreateOutput = & $validator -RepoRoot $repo -SkillDir $SkillDir -ConfigDefaultsPath $configPath -ConfigLocalPath (Join-Path $testRoot 'missing.json') -Detailed 2>&1
+  $missingCreateExit = $LASTEXITCODE
+  $missingCreateJson = ($missingCreateOutput -join "`n") | ConvertFrom-Json
+  Assert-True ($missingCreateExit -eq 2 -and ($missingCreateJson.errors -join ';') -match 'begin with a creation event') 'Validator rejects history that starts with a status change'
+
+  $duplicateCreateHistory = $validHistory.Replace("| TASK-001 | 状态变更 | TODO", "| TASK-001 | 创建 | — | TODO | 2026-11-07T10:02:00 | 重复创建 |`r`n| TASK-001 | 状态变更 | TODO")
+  $duplicateCreateBoard = $validBoard.Replace($validHistory,$duplicateCreateHistory)
+  [System.IO.File]::WriteAllText($taskPath,$duplicateCreateBoard,([System.Text.UTF8Encoding]::new($false)))
+  $duplicateCreateOutput = & $validator -RepoRoot $repo -SkillDir $SkillDir -ConfigDefaultsPath $configPath -ConfigLocalPath (Join-Path $testRoot 'missing.json') -Detailed 2>&1
+  $duplicateCreateExit = $LASTEXITCODE
+  $duplicateCreateJson = ($duplicateCreateOutput -join "`n") | ConvertFrom-Json
+  Assert-True ($duplicateCreateExit -eq 2 -and ($duplicateCreateJson.errors -join ';') -match 'invalid task creation history event') 'Validator rejects duplicate creation events'
+
+  $badTimestampHistory = $validHistory.Replace('2026-11-07T10:00:00','not-a-timestamp')
+  $badTimestampBoard = $validBoard.Replace($validHistory,$badTimestampHistory)
+  [System.IO.File]::WriteAllText($taskPath,$badTimestampBoard,([System.Text.UTF8Encoding]::new($false)))
+  $badTimestampOutput = & $validator -RepoRoot $repo -SkillDir $SkillDir -ConfigDefaultsPath $configPath -ConfigLocalPath (Join-Path $testRoot 'missing.json') -Detailed 2>&1
+  $badTimestampExit = $LASTEXITCODE
+  $badTimestampJson = ($badTimestampOutput -join "`n") | ConvertFrom-Json
+  Assert-True ($badTimestampExit -eq 2 -and ($badTimestampJson.errors -join ';') -match 'invalid status history timestamp') 'Validator rejects malformed ISO 8601 timestamps'
+
+  $outOfOrderHistory = $validHistory.Replace('2026-11-07T10:05:00','2026-11-07T09:59:00')
+  $outOfOrderBoard = $validBoard.Replace($validHistory,$outOfOrderHistory)
+  [System.IO.File]::WriteAllText($taskPath,$outOfOrderBoard,([System.Text.UTF8Encoding]::new($false)))
+  $outOfOrderOutput = & $validator -RepoRoot $repo -SkillDir $SkillDir -ConfigDefaultsPath $configPath -ConfigLocalPath (Join-Path $testRoot 'missing.json') -Detailed 2>&1
+  $outOfOrderExit = $LASTEXITCODE
+  $outOfOrderJson = ($outOfOrderOutput -join "`n") | ConvertFrom-Json
+  Assert-True ($outOfOrderExit -eq 2 -and ($outOfOrderJson.errors -join ';') -match 'timestamps are out of order') 'Validator rejects timestamps that move backwards'
 
   $invalidHistory = $validHistory.Replace('TODO | IN_PROGRESS','TODO | DONE')
   $invalidRow = $validRow.Replace('IN_PROGRESS','DONE')

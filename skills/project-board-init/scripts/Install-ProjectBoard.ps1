@@ -16,8 +16,10 @@ if (-not $SkillDir) { $SkillDir = Split-Path -Parent $PSScriptRoot }
 if (-not $ConfigDefaultsPath) { $ConfigDefaultsPath = Join-Path $SkillDir 'config.defaults.json' }
 if (-not $ConfigLocalPath) { $ConfigLocalPath = Join-Path $SkillDir 'config.local.json' }
 if (-not (Test-Path -LiteralPath $RepoRoot -PathType Container)) { throw "Repository root does not exist: $RepoRoot" }
-$RepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
 . (Join-Path $PSScriptRoot 'ProjectBoardConfig.ps1')
+Assert-ProjectBoardNoReparsePoint -Root $RepoRoot
+$RepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
+Assert-ProjectBoardNoReparsePoint -Root $RepoRoot
 
 function Expand-ProjectBoardTemplate {
   param([string]$Text, [hashtable]$Tokens)
@@ -39,6 +41,7 @@ function Merge-ProjectBoardTaskHistory {
 }
 function Get-CanonicalTargetPath {
   param([string]$RelativePath)
+  Assert-ProjectBoardNoReparsePoint -Root $RepoRoot -RelativePath $RelativePath
   $candidate = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot $RelativePath))
   $rootPrefix = $RepoRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
   if (-not $candidate.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase) -and
@@ -175,6 +178,7 @@ foreach ($rel in @($map.Keys)) {
 $directoryPlan = @($plans,$docs,'.project-board') + $extra | Select-Object -Unique
 $directoryPlan += (Split-Path -Parent $done), (Split-Path -Parent $ruleFile), (Split-Path -Parent $taskGuideFile)
 $directoryPlan = @($directoryPlan | Where-Object { $_ -and $_ -ne '.' } | Select-Object -Unique)
+Assert-ProjectBoardNoReparsePoint -Root $RepoRoot -RelativePath '.project-board-backups'
 foreach ($rel in $directoryPlan) {
   $target = Get-CanonicalTargetPath $rel
   if (Test-Path -LiteralPath $target -PathType Leaf) { throw "Directory path conflicts with an existing file: $rel" }
@@ -191,6 +195,7 @@ $report = [ordered]@{
 if ($Preview) { $report | ConvertTo-Json -Depth 8; exit 0 }
 
 # No mutation occurs before this point. Back up every file that will be replaced.
+Assert-ProjectBoardNoReparsePoint -Root $RepoRoot -RelativePath '.project-board-backups'
 $backupRoot = Join-Path $RepoRoot ('.project-board-backups\' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
 $backupCount = 0
 foreach ($item in $plan) {
