@@ -1,11 +1,12 @@
 ---
-version: 1.1.1name: project-board-init
+version: 1.2.1
+name: project-board-init
 description: >-
   为仓库安装项目看板与统一任务台账：写入 .cursor/rules/project-board.mdc，创建
   project.md、Task_Board.md、plans/done.md 及配置目录。仅在用户明确要求安装、
   初始化项目看板或点名 project-board-init 时使用。
 disable-model-invocation: true
-compatibility: Requires PowerShell 5.1+; local config is merged by the installer.
+compatibility: Requires Windows PowerShell 5.1+ or PowerShell 7; local config is merged by the installer.
 ---
 
 # 项目看板安装（project-board-init）
@@ -37,7 +38,7 @@ compatibility: Requires PowerShell 5.1+; local config is merged by the installer
 
 ## 配置
 
-配置合并顺序：`config.defaults.json` ← `config.local.json`。对象递归合并，数组整段替换。本机 `config.local.json` 不得进入分发包；`config.local.json.example` 仅供复制，不由脚本读取。
+配置合并顺序：`config.defaults.json` ← `config.local.json`。对象递归合并，数组整段替换。本机 `config.local.json` 不得进入分发包；`config.local.json.example` 仅供复制。覆盖授权不属于配置项，只能由本次命令行显式 `-Force` 提供。
 
 默认配置：
 
@@ -46,8 +47,7 @@ compatibility: Requires PowerShell 5.1+; local config is merged by the installer
   "directories": {"plans":"plans","docs":"docs","doneFile":"plans/done.md","extra":[]},
   "board": {"file":"project.md","ruleFile":".cursor/rules/project-board.mdc","taskBoardFile":"Task_Board.md","taskGuideFile":"references/task-management.md"},
   "taskManagement": {"enabled":true,"idPrefix":"TASK","requireAcceptanceCriteria":true,"requireCommitForCodeTasks":true,"requireTagForMilestones":true},
-  "validation": {"readOnly":true,"checkGit":true,"checkTaskReferences":true},
-  "init": {"fillFromRepo":true,"force":false}
+  "validation": {"readOnly":true,"checkGit":true,"checkTaskReferences":true}
 }
 ```
 
@@ -57,22 +57,24 @@ compatibility: Requires PowerShell 5.1+; local config is merged by the installer
 
 1. 锁定目标仓库根目录；多根工作区无法确定时先询问。
 2. 探测 `project.md`、`Task_Board.md`、归档文件和规则文件。已有文件默认保留；发现结构冲突先报告并征求迁移/覆盖/放弃选择。
-3. 执行安装脚本。默认只创建缺失文件；只有用户明确授权覆盖并使用 `-Force` 才更新已存在文件。
+3. 先执行安装脚本 `-Preview`，展示目录、创建、跳过和覆盖清单；预览不写入。确认后执行安装。默认只创建缺失文件；只有用户明确授权覆盖并在本次命令行显式使用 `-Force` 才更新已存在文件。覆盖前自动备份到目标仓库 `.project-board-backups/<timestamp>/`。
 4. 根据仓库可验证证据起草 `project.md`，不得编造业务目标或已确认决策。
-5. 运行只读检查脚本，报告 ERROR/WARNING/PASS。
+5. 运行只读检查脚本，报告 ERROR/WARNING/INFO/PASS。
 6. 汇报新增、跳过和更新文件，以及未解决问题。不得自动 Commit 或 Tag。
 
-安装命令：
+安装预览与执行：
 
 ```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "{SKILL_DIR}/scripts/Install-ProjectBoard.ps1" -RepoRoot "D:\path\to\repo" -Preview
 powershell -NoProfile -ExecutionPolicy Bypass -File "{SKILL_DIR}/scripts/Install-ProjectBoard.ps1" -RepoRoot "D:\path\to\repo"
 ```
+
+已有项目升级使用 `scripts/Upgrade-ProjectBoard.ps1`：默认预览，需 `-Apply` 执行；若要覆盖已有文件还必须显式 `-Force`。
 
 ## 任务管理规则
 
 - Task ID 使用 `TASK-001` 等格式，永久唯一，不复用。
-- 状态统一为 `TODO`、`IN_PROGRESS`、`BLOCKED`、`REVIEW`、`DONE`、`DEFERRED`、`CANCELLED`。
-- 状态转换、依赖、验收、归档和 Git 关联详见 `references/task-management.md`。
+- 状态定义、合法转换、依赖、验收、归档和 Git 关联以 `references/task-management.md` 为唯一规范源；其他文件只保留摘要。
 - DONE 必须有交付物、验收证据、必要测试记录并写入 `plans/done.md`。
 - 代码任务记录真实 Commit SHA；里程碑记录真实 Tag。Agent 不得自动创建 Commit 或 Tag。
 - CANCELLED 保留原因，不进入完成归档。DONE/CANCELLED 重新打开必须记录原因并取得用户授权。
@@ -89,11 +91,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "{SKILL_DIR}/scripts/Test-Pr
 powershell -NoProfile -ExecutionPolicy Bypass -File "{SKILL_DIR}/scripts/Test-ProjectBoard.ps1" -RepoRoot "D:\path\to\repo" -Detailed
 ```
 
-检查文件结构、任务 ID、状态、依赖、归档和 Git 引用。检查脚本不得写入目标仓库，不得自动修复，不得执行 Git 写操作。ERROR 表示确定性错误；WARNING 表示待核实或缺失信息；PASS 表示未发现问题。
+检查文件结构、任务 ID/表格列数/状态/类型、依赖、归档和 Git 引用。Git 通过 `git rev-parse --is-inside-work-tree` 识别，兼容 Worktree。检查脚本不得写入目标仓库，不得自动修复，不得执行 Git 写操作。ERROR 表示确定性错误；WARNING 表示待核实或缺失信息；INFO 表示检查跳过或提示；PASS 表示未发现问题。技能自身测试位于 `tests/`，分别在 Windows PowerShell 5.1 与 PowerShell 7 运行。
 
 ## 安全边界
 
-- 不覆盖已有文件，除非用户明确授权并显式使用 `-Force`。
+- 不覆盖已有文件，除非用户明确授权并在本次命令行显式使用 `-Force`；配置文件不得授权覆盖。
+- 执行前先预览；覆盖前自动备份，备份不自动清理。
 - 不修改本机配置，不分发 `config.local.json`。
 - 不删除项目历史、任务、归档或自定义内容。
 - 不自动 Commit、Tag、Checkout、Reset。

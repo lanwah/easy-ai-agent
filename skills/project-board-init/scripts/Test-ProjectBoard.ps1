@@ -32,6 +32,13 @@ $ruleFile = [string](Get-ProjectBoardValue $board 'ruleFile' '.cursor/rules/proj
 $taskFile = [string](Get-ProjectBoardValue $board 'taskBoardFile' 'Task_Board.md')
 $taskGuideFile = [string](Get-ProjectBoardValue $board 'taskGuideFile' 'references/task-management.md')
 $extra = Get-ProjectBoardStringList (Get-ProjectBoardValue $dirs 'extra' @())
+$configuredPaths = @($plans,$docs,$done,$boardFile,$ruleFile,$taskFile,$taskGuideFile) + $extra
+foreach ($rel in $configuredPaths) { Assert-ProjectBoardRelativePath -Path ([string]$rel) -Name 'path' }
+foreach ($rel in $configuredPaths) {
+  $full = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot ([string]$rel)))
+  $prefix = $RepoRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+  if (-not $full.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) { throw "Configured path escapes repository root: $rel" }
+}
 
 $taskEnabled = (Get-ProjectBoardValue $taskMgmt 'enabled' $true) -eq $true
 $idPrefix = [string](Get-ProjectBoardValue $taskMgmt 'idPrefix' 'TASK')
@@ -44,6 +51,7 @@ $readOnly = (Get-ProjectBoardValue $validation 'readOnly' $true) -eq $true
 
 $errors = New-Object System.Collections.Generic.List[string]
 $warnings = New-Object System.Collections.Generic.List[string]
+$infos = New-Object System.Collections.Generic.List[string]
 $checks = New-Object System.Collections.Generic.List[string]
 
 if (-not $readOnly) {
@@ -63,6 +71,23 @@ function Add-Error {
 function Add-Warning {
   param([string]$Message)
   $script:warnings.Add($Message)
+}
+function Add-Info {
+  param([string]$Message)
+  $script:infos.Add($Message)
+}
+
+function Invoke-BoardGit {
+  param([Parameter(Mandatory = $true)][string[]]$GitArgs)
+  # Under $ErrorActionPreference=Stop, git stderr (e.g. non-repo) becomes NativeCommandError.
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    & git @GitArgs 2>$null | Out-Null
+    return $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $prev
+  }
 }
 
 function Test-BoardFile {
@@ -151,19 +176,25 @@ if ($taskEnabled -and (Test-Path -LiteralPath $taskPath -PathType Leaf)) {
 
   foreach ($line in $lines) {
     if ($line -match '^\|\s*Task ID') { continue }
+    if ($line -notmatch '^\|') { continue }
+    $cells = Get-MarkdownTableCells $line
+    if ($cells.Count -eq 0 -or $cells[0] -match '^[-: ]+$') { continue }
     $taskMatch = [regex]::Match($line, $taskIdPattern)
-    if (-not $taskMatch.Success) { continue }
+    if (-not $taskMatch.Success) {
+      if ($cells[0] -match ('^' + [regex]::Escape($idPrefix))) { Add-Error "malformed task ID in row: $($cells[0])" }
+      elseif ($cells[0] -notmatch '^Task ID$') { Add-Warning "unrecognized task table row: $($cells[0])" }
+      continue
+    }
 
     $id = $taskMatch.Groups[1].Value
-    $cells = Get-MarkdownTableCells $line
     if ($tasks.ContainsKey($id)) {
       Add-Error "duplicate task ID: $id"
       continue
     }
     $tasks[$id] = $cells
 
-    if ($cells.Count -lt 14) {
-      Add-Warning "task row has fewer than 14 columns: $id"
+    if ($cells.Count -ne 14) {
+      Add-Error "task row must have exactly 14 columns (found $($cells.Count)): $id"
       continue
     }
 
@@ -175,6 +206,8 @@ if ($taskEnabled -and (Test-Path -LiteralPath $taskPath -PathType Leaf)) {
     if ($requireAcceptance -and ([string]::IsNullOrWhiteSpace($cells[9]) -or $cells[9] -eq '—')) {
       Add-Warning "acceptance criteria missing: $id"
     }
+    $validTypes = @('普通','代码','里程碑','代码,里程碑','代码，里程碑')
+    if ($cells[13] -notin $validTypes) { Add-Error "invalid task type for ${id}: $($cells[13])" }
 
     $deps[$id] = @()
     if ($cells[7] -and $cells[7] -ne '—') {
@@ -248,10 +281,11 @@ if ($taskEnabled -and (Test-Path -LiteralPath $taskPath -PathType Leaf)) {
 if ($checkGit) {
   $git = Get-Command git -ErrorAction SilentlyContinue
   if ($null -eq $git) {
-    Add-Warning 'Git executable unavailable; Commit/Tag checks skipped'
-  } elseif (-not (Test-Path -LiteralPath (Join-Path $RepoRoot '.git'))) {
-    Add-Warning 'target is not a Git working tree; Commit/Tag checks skipped'
+    Add-Info 'Git executable unavailable; Commit/Tag checks skipped'
   } else {
+    $insideWorkTree = (Invoke-BoardGit -GitArgs @('-C', $RepoRoot, 'rev-parse', '--is-inside-work-tree')) -eq 0
+    if (-not $insideWorkTree) { Add-Info 'target is not a Git working tree; Commit/Tag checks skipped' }
+    if ($insideWorkTree) {
     foreach ($id in $tasks.Keys) {
       $cells = $tasks[$id]
       if ($cells.Count -lt 14) { continue }
@@ -259,22 +293,25 @@ if ($checkGit) {
       $tagText = $cells[11]
       if ($commitText -and $commitText -ne '—') {
         foreach ($sha in ($commitText -split ',\s*')) {
-          & git -C $RepoRoot cat-file -e "$sha^{commit}" 2>$null
-          if ($LASTEXITCODE -ne 0) {
+          if ($sha -notmatch '^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$') {
+            Add-Warning "Commit reference is not a full SHA for ${id}: $sha"
+            continue
+          }
+          if ((Invoke-BoardGit -GitArgs @('-C', $RepoRoot, 'cat-file', '-e', "$sha^{commit}")) -ne 0) {
             Add-Warning "Commit cannot be verified for ${id}: $sha"
           }
         }
       }
       if ($tagText -and $tagText -ne '—') {
         foreach ($tag in ($tagText -split ',\s*')) {
-          & git -C $RepoRoot rev-parse -q --verify "refs/tags/$tag" 2>$null | Out-Null
-          if ($LASTEXITCODE -ne 0) {
+          if ((Invoke-BoardGit -GitArgs @('-C', $RepoRoot, 'rev-parse', '-q', '--verify', "refs/tags/$tag")) -ne 0) {
             Add-Warning "Tag cannot be verified for ${id}: $tag"
           }
         }
       }
     }
     Add-Check 'Git reference checks completed'
+    }
   }
 }
 
@@ -282,6 +319,8 @@ $status = if ($errors.Count -gt 0) {
   'ERROR'
 } elseif ($warnings.Count -gt 0) {
   'WARNING'
+} elseif ($infos.Count -gt 0) {
+  'INFO'
 } else {
   'PASS'
 }
@@ -292,6 +331,7 @@ $result = [ordered]@{
   checks    = @($checks)
   errors    = @($errors)
   warnings  = @($warnings)
+  infos     = @($infos)
   readOnly  = $true
 }
 
@@ -303,4 +343,5 @@ if ($Detailed -or $errors.Count -gt 0 -or $warnings.Count -gt 0) {
 
 if ($errors.Count -gt 0) { exit 2 }
 if ($warnings.Count -gt 0) { exit 1 }
+if ($infos.Count -gt 0) { exit 0 }
 exit 0

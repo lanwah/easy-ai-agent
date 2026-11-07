@@ -18,7 +18,7 @@ alwaysApply: true
 - 推进项目或修改仓库前阅读 project.md、Task_Board.md，以及下一步链接的必要文档。
 - 新任务先分配永久唯一 TASK ID，填写阶段、优先级、状态、交付物和验收标准。
 - 任务依赖使用现有 Task ID；所有前置任务完成后才可开始。
-- 状态转换：TODO→IN_PROGRESS/DEFERRED/CANCELLED；IN_PROGRESS→BLOCKED/REVIEW/DEFERRED/CANCELLED；BLOCKED→IN_PROGRESS/DEFERRED/CANCELLED；REVIEW→DONE/IN_PROGRESS/BLOCKED；DEFERRED→TODO/IN_PROGRESS/CANCELLED。DONE 和 CANCELLED 默认终态，重新打开需记录原因并获用户授权。
+- 状态定义、合法转换、依赖、验收与归档规则以 `{{TASK_GUIDE_FILE}}` 为唯一规范源；本规则只保留执行摘要，不另行定义规则。
 - 不得将未验收任务标记 DONE，不得删除或复用历史任务 ID。
 - 代码任务完成时记录真实 Commit SHA；里程碑记录真实 Tag。不得自动创建 Commit 或 Tag。
 - DONE 任务必须同步追加到 `{{DONE_FILE}}`，台账保留索引；CANCELLED 保留原因，不进入完成归档。
@@ -41,10 +41,10 @@ alwaysApply: true
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File "$HOME\.agents\skills\project-board-init\scripts\Test-ProjectBoard.ps1" `
+  -File "{{SKILL_DIR}}/scripts/Test-ProjectBoard.ps1" `
   -RepoRoot "<本仓库根目录>"
 
 # 详细清单可追加 -Detailed
 ```
 
-若技能装在 Cursor 路径，将上面的 `.agents\skills` 换成 `.cursor\skills`。检查只报告，不自动修复、不修改文件、不执行 Git 写操作。
+检查命令中的技能路径由安装器写入当前实际技能目录；技能迁移后需重新生成或手动更新该路径。检查只报告，不自动修复、不修改文件、不执行 Git 写操作。

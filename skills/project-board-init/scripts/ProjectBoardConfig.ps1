@@ -88,11 +88,13 @@ function Assert-ProjectBoardRelativePath {
   )
   if ([string]::IsNullOrWhiteSpace($Path) -or
       [System.IO.Path]::IsPathRooted($Path) -or
-      $Path -match '(^|[\\/])\.\.([\\/]|$)') {
+      $Path -match '(^|[\\/])\.\.([\\/]|$)' -or
+      $Path -match '(^|[\\/])\.([\\/]|$)' -or
+      $Path -match '[<>:"|?*]' -or
+      $Path -match '[\\/\s]$') {
     throw "Invalid relative path in config ($Name): $Path"
   }
 }
-
 function Get-ProjectBoardStringList {
   param($Value)
   if ($null -eq $Value) { return @() }

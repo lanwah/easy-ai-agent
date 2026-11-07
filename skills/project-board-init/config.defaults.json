@@ -22,9 +22,5 @@
     "readOnly": true,
     "checkGit": true,
     "checkTaskReferences": true
-  },
-  "init": {
-    "fillFromRepo": true,
-    "force": false
   }
 }

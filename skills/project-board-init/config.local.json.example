@@ -1,9 +1,7 @@
 {
   "directories": {
-    "extra": ["design"]
-  },
-  "init": {
-    "fillFromRepo": true,
-    "force": false
+    "extra": [
+      "design"
+    ]
   }
 }
