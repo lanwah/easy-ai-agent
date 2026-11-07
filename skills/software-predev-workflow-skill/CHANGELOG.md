@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.4.2] - 2026-11-07
+
+### Fixed
+- 修正 `.gitignore`：不再忽略 `.cursor/`，使 `skill-rule-versioning.mdc` 可纳入版本库（与合集内其它技能一致）。
+
+### Changed
+- 移除技能包内冗余的 `sequential-commit-msg.mdc`（序号提交由合集根统一启用）。
+
 ## [2.4.1] - 2026-11-07
 
 ### Added
